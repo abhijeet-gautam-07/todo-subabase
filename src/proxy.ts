@@ -4,6 +4,9 @@ import { createServerClient } from "@supabase/ssr";
 const protectedRoutes = ["/dashboard", "/admin"];
 const authRoutes = ["/login", "/signup"];
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({
     request: {

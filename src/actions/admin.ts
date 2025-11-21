@@ -5,6 +5,9 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 const userSchema = z.object({
   userId: z.string().uuid(),
 });

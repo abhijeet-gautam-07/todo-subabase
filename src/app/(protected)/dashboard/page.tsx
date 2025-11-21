@@ -4,6 +4,9 @@ import { getServerSupabase } from "@/lib/supabase/server";
 import { NewTodoForm } from "@/components/todos/new-todo-form";
 import { TodoTabs } from "@/components/todos/todo-tabs";
 import { Todo } from "@/types/todo";
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 
 export default async function DashboardPage() {
   noStore();
