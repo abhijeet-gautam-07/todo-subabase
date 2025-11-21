@@ -118,4 +118,3 @@ export async function deleteTodoAction(id: string) {
   }
   revalidatePath("/dashboard");
 }
-
