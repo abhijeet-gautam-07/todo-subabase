@@ -10,6 +10,9 @@ type TodoListProps = {
   todos: Todo[];
 };
 
+// form action signature expected by <form action={...}>
+type FormAction = (formData: FormData) => void | Promise<void>;
+
 export function TodoList({ todos }: TodoListProps) {
   if (todos.length === 0) {
     return (
@@ -34,17 +37,19 @@ export function TodoList({ todos }: TodoListProps) {
                 )}
               </div>
               {todo.description && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {todo.description}
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{todo.description}</p>
               )}
               <p className="mt-2 text-xs text-muted-foreground">
                 Due {todo.due_date ? format(new Date(todo.due_date), "PP") : "TBD"}
               </p>
             </div>
+
             <div className="flex flex-wrap gap-2">
               <form
-                action={toggleTodoAction.bind(null, todo.id, !todo.is_complete)}
+                // cast the bound server action to the exact form action signature
+                action={
+                  toggleTodoAction.bind(null, todo.id, !todo.is_complete) as unknown as FormAction
+                }
               >
                 <Button
                   type="submit"
@@ -54,8 +59,14 @@ export function TodoList({ todos }: TodoListProps) {
                   {todo.is_complete ? "Mark pending" : "Mark done"}
                 </Button>
               </form>
+
               <EditTodoDialog todo={todo} />
-              <form action={deleteTodoAction.bind(null, todo.id)}>
+
+              <form
+                action={
+                  deleteTodoAction.bind(null, todo.id) as unknown as FormAction
+                }
+              >
                 <Button type="submit" variant="destructive" size="sm">
                   Delete
                 </Button>
@@ -67,4 +78,3 @@ export function TodoList({ todos }: TodoListProps) {
     </div>
   );
 }
-

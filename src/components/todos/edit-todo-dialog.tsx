@@ -17,7 +17,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Todo } from "@/types/todo";
 
-const initialState = { error: "", success: false };
+// union that useActionState expects
+type ActionState =
+  | { error: string; success?: undefined }
+  | { success: boolean; error?: undefined };
+
+// initial state matches one branch
+const initialState: ActionState = { error: "" };
 
 type EditTodoDialogProps = {
   todo: Todo;
@@ -25,7 +31,16 @@ type EditTodoDialogProps = {
 
 export function EditTodoDialog({ todo }: EditTodoDialogProps) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useActionState(updateTodoAction, initialState);
+
+  // cast the action to the expected signature so TS lines up:
+  // (state?: ActionState, payload: FormData) => Promise<ActionState>
+  const [state, formAction] = useActionState(
+    updateTodoAction as unknown as (
+      prevState: ActionState | undefined,
+      formData: FormData
+    ) => Promise<ActionState>,
+    initialState
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -67,7 +82,7 @@ export function EditTodoDialog({ todo }: EditTodoDialogProps) {
               defaultValue={todo.description ?? ""}
             />
           </div>
-          {state?.error && (
+          {("error" in state && state.error) && (
             <p className="text-sm text-destructive">{state.error}</p>
           )}
           <DialogSubmit />
@@ -85,4 +100,3 @@ function DialogSubmit() {
     </Button>
   );
 }
-
