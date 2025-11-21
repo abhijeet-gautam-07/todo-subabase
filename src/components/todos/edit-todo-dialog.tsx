@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { updateTodoAction } from "@/actions/todos";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,7 @@ type EditTodoDialogProps = {
 
 export function EditTodoDialog({ todo }: EditTodoDialogProps) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useFormState(updateTodoAction, initialState);
+  const [state, formAction] = useActionState(updateTodoAction, initialState);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

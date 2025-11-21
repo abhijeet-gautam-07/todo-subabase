@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState, useEffect, useRef } from "react";
+import { useFormStatus } from "react-dom";
 import { createTodoAction } from "@/actions/todos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ const initialState = { error: "", success: false };
 
 export function NewTodoForm() {
   const formRef = useRef<HTMLFormElement>(null);
-  const [state, formAction] = useFormState(createTodoAction, initialState);
+  const [state, formAction] = useActionState(createTodoAction, initialState);
 
   useEffect(() => {
     if (state?.success) {

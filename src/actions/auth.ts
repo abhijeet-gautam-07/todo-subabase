@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "@/lib/supabase/server";
 
@@ -8,34 +7,45 @@ type ActionState = {
   error?: string;
 };
 
+// --------------------
+// LOGIN ACTION
+// --------------------
 export async function loginAction(
-  _prevState: ActionState | undefined,
-  formData: FormData,
-) {
+  prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
   const form = parseAuthForm(formData);
-  if (form.error) {
+
+  if ("error" in form) {
     return { error: form.error };
   }
+
   const supabase = await getServerSupabase();
   const { error } = await supabase.auth.signInWithPassword({
     email: form.email,
     password: form.password,
   });
+
   if (error) {
     return { error: error.message };
   }
-  revalidatePath("/dashboard");
+
   redirect("/dashboard");
 }
 
+// --------------------
+// SIGNUP ACTION
+// --------------------
 export async function signupAction(
-  _prevState: ActionState | undefined,
-  formData: FormData,
-) {
+  prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
   const form = parseSignupForm(formData);
-  if (form.error) {
+
+  if ("error" in form) {
     return { error: form.error };
   }
+
   const supabase = await getServerSupabase();
   const { data, error } = await supabase.auth.signUp({
     email: form.email,
@@ -46,106 +56,92 @@ export async function signupAction(
       },
     },
   });
+
   if (error) {
     return { error: error.message };
   }
-  if (data.user) {
+
+  if (data?.user) {
     await supabase
       .from("profiles")
       .upsert({
         id: data.user.id,
         full_name: form.fullName,
-        role: "user",
+        role: form.makeAdmin ? "admin" : "user",
       })
-      .select()
       .single();
   }
-  revalidatePath("/dashboard");
+
   redirect("/dashboard");
 }
 
-export async function logoutAction() {
+// --------------------
+// LOGOUT ACTION
+// --------------------
+export async function logoutAction(): Promise<void> {
   const supabase = await getServerSupabase();
   await supabase.auth.signOut();
   redirect("/login");
 }
 
+// --------------------
+// FORM UTILITIES
+// --------------------
+
 const MIN_PASSWORD_LENGTH = 6;
 
-function parseAuthForm(formData: FormData) {
+type AuthSuccess = { email: string; password: string };
+type ErrorResult = { error: string };
+type AuthResult = AuthSuccess | ErrorResult;
+type SignupSuccess = AuthSuccess & { fullName: string; makeAdmin: boolean };
+type SignupResult = SignupSuccess | ErrorResult;
+
+function parseAuthForm(formData: FormData): AuthResult {
   const email = normalizeEmail(formData.get("email"));
   const password = getPassword(formData.get("password"));
-  if (!email) {
-    return { error: "Email is required" };
-  }
-  if (!isValidEmail(email)) {
-    return { error: "Email address is invalid" };
-  }
-  if (!password) {
-    return { error: "Password is required" };
-  }
-  if (password.length < MIN_PASSWORD_LENGTH) {
+
+  if (!email) return { error: "Email is required" };
+  if (!isValidEmail(email)) return { error: "Email address is invalid" };
+  if (!password) return { error: "Password is required" };
+  if (password.length < MIN_PASSWORD_LENGTH)
     return { error: "Password is too short" };
-  }
+
   return { email, password };
 }
 
-function parseSignupForm(formData: FormData) {
+function parseSignupForm(formData: FormData): SignupResult {
   const auth = parseAuthForm(formData);
-  if ("error" in auth) {
-    return auth;
-  }
+  if ("error" in auth) return auth;
+
   const fullName = normalizeText(formData.get("fullName"));
-  if (!fullName) {
-    return { error: "Full name is required" };
-  }
-  if (fullName.length > 120) {
+  if (!fullName) return { error: "Full name is required" };
+  if (fullName.length > 120)
     return { error: "Full name is too long" };
-  }
-  return { ...auth, fullName };
+
+  const makeAdmin = getCheckboxValue(formData.get("makeAdmin"));
+
+  return { email: auth.email, password: auth.password, fullName, makeAdmin };
 }
 
 function normalizeEmail(value: FormDataEntryValue | null) {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value.trim().toLowerCase();
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
 function normalizeText(value: FormDataEntryValue | null) {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value.trim();
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function getPassword(value: FormDataEntryValue | null) {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value;
+  return typeof value === "string" ? value : "";
 }
 
 function isValidEmail(email: string) {
-  if (!email) {
-    return false;
-  }
-  const parts = email.split("@");
-  if (parts.length !== 2) {
-    return false;
-  }
-  const [local, domain] = parts;
-  if (!local || !domain) {
-    return false;
-  }
-  if (domain.startsWith(".") || domain.endsWith(".")) {
-    return false;
-  }
-  if (domain.split(".").length < 2) {
-    return false;
-  }
-  const localPattern = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/;
-  const domainPattern = /^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
-  return localPattern.test(local) && domainPattern.test(domain);
+  return /\S+@\S+\.\S+/.test(email);
 }
 
+function getCheckboxValue(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  return value === "on" || value === "true";
+}
