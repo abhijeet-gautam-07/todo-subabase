@@ -18,8 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Todo } from "@/types/todo";
 
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+
 
 // union that useActionState expects
 type ActionState =

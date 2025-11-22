@@ -2,8 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "@/lib/supabase/server";
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
 
 type ActionState = {
   error?: string;

@@ -7,8 +7,7 @@ export type Profile = {
   role: "user" | "admin";
   is_blocked: boolean;
 };
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+
 
 export async function getSession() {
   const supabase = await getServerSupabase();

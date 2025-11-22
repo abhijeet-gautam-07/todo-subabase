@@ -10,8 +10,7 @@ import {
 } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+
 
 type AdminUserRow = {
   id: string;

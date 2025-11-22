@@ -1,7 +1,6 @@
 import { AppHeader } from "@/components/shell/app-header";
 import { requireUser } from "@/lib/auth";
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+
 
 export default async function ProtectedLayout({
   children,

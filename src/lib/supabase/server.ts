@@ -1,8 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
 
 export async function getServerSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

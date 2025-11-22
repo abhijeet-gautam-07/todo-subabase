@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getServerSupabase } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+
 
 const todoSchema = z.object({
   title: z.string().min(1).max(150),
