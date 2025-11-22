@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
-import { createTodoAction } from "@/actions/todos";
+import { createTodoAction, ActionResult } from "@/actions/todos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,13 +22,12 @@ export function NewTodoForm() {
 
   // cast action to the expected signature:
   // (prevState?: ActionState, payload: FormData) => Promise<ActionState>
-  const [state, formAction] = useActionState(
-    createTodoAction as unknown as (
-      prevState: ActionState | undefined,
-      formData: FormData
-    ) => Promise<ActionState>,
-    initialState
-  );
+// new — correct
+const [state, formAction] = useActionState<ActionState, FormData>(
+  createTodoAction,
+  initialState
+);
+
 
   useEffect(() => {
     if ("success" in state && state.success) {
@@ -71,9 +70,9 @@ export function NewTodoForm() {
         <Textarea id="description" name="description" placeholder="Add context" />
       </div>
 
-      {("error" in state && state.error) && (
-        <p className="text-sm text-destructive">{state.error}</p>
-      )}
+    {"error" in state && state.error ? (
+  <p className="text-sm text-destructive">{state.error}</p>
+) : null}
 
       <SubmitButton />
     </form>

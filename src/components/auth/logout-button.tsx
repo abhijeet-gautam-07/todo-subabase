@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { logoutAction } from "@/actions/auth";
+import { logoutAction } from "@/actions/logout"; // <- updated import
 import { Button } from "@/components/ui/button";
 
 export function LogoutButton() {
@@ -20,4 +20,3 @@ function Submit() {
     </Button>
   );
 }
-

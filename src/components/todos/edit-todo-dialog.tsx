@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { updateTodoAction } from "@/actions/todos";
+import { updateTodoAction, ActionResult } from "@/actions/todos";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,15 +18,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Todo } from "@/types/todo";
 
 
-
-
-// union that useActionState expects
+// union that useActionState expects (place this before you call useActionState)
 type ActionState =
   | { error: string; success?: undefined }
   | { success: boolean; error?: undefined };
 
-// initial state matches one branch
+// initial state matches one branch of the union
 const initialState: ActionState = { error: "" };
+
 
 type EditTodoDialogProps = {
   todo: Todo;
@@ -35,15 +34,12 @@ type EditTodoDialogProps = {
 export function EditTodoDialog({ todo }: EditTodoDialogProps) {
   const [open, setOpen] = useState(false);
 
-  // cast the action to the expected signature so TS lines up:
-  // (state?: ActionState, payload: FormData) => Promise<ActionState>
-  const [state, formAction] = useActionState(
-    updateTodoAction as unknown as (
-      prevState: ActionState | undefined,
-      formData: FormData
-    ) => Promise<ActionState>,
-    initialState
-  );
+  // NOTE: formAction is first, state is second
+const [state, formAction] = useActionState<ActionState, FormData>(
+  updateTodoAction,
+  initialState
+);
+
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -71,23 +67,19 @@ export function EditTodoDialog({ todo }: EditTodoDialogProps) {
               type="date"
               required
               defaultValue={
-                todo.due_date
-                  ? new Date(todo.due_date).toISOString().split("T")[0]
-                  : ""
+                todo.due_date ? new Date(todo.due_date).toISOString().split("T")[0] : ""
               }
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Details</Label>
-            <Textarea
-              id="description"
-              name="description"
-              defaultValue={todo.description ?? ""}
-            />
+            <Textarea id="description" name="description" defaultValue={todo.description ?? ""} />
           </div>
-          {("error" in state && state.error) && (
+
+          {"error" in state && state.error ? (
             <p className="text-sm text-destructive">{state.error}</p>
-          )}
+          ) : null}
+
           <DialogSubmit />
         </form>
       </DialogContent>

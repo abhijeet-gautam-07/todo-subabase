@@ -1,10 +1,9 @@
+// src/proxy.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 const protectedRoutes = ["/dashboard", "/admin"];
 const authRoutes = ["/login", "/signup"];
-
-
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({
@@ -41,20 +40,22 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // Defensive check: require both session and user to treat as authenticated
+  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
+  const isAuthenticated = !!session && !!user;
+
   const pathname = request.nextUrl.pathname;
 
   if (protectedRoutes.some((route) => pathname.startsWith(route))) {
-    if (!session) {
+    if (!isAuthenticated) {
       const redirectUrl = new URL("/login", request.url);
       redirectUrl.searchParams.set("redirectTo", pathname);
       return NextResponse.redirect(redirectUrl);
     }
   }
 
-  if (session && authRoutes.includes(pathname)) {
+  if (isAuthenticated && authRoutes.includes(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -64,4 +65,3 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: ["/", "/login", "/signup", "/dashboard/:path*", "/admin/:path*"],
 };
-

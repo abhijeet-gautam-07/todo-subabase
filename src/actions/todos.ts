@@ -6,6 +6,9 @@ import { getServerSupabase } from "@/lib/supabase/server";
 
 
 
+export type ActionResult = { error: string } | { success: true };
+
+
 const todoSchema = z.object({
   title: z.string().min(1).max(150),
   description: z.string().max(500).optional(),
@@ -117,3 +120,5 @@ export async function deleteTodoAction(id: string) {
   }
   revalidatePath("/dashboard");
 }
+
+

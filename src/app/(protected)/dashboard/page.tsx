@@ -9,8 +9,8 @@ import { Todo } from "@/types/todo";
 
 export default async function DashboardPage() {
   noStore();
-  const { session } = await requireUser();
-  const userId = session?.user.id;
+  const { user } = await requireUser();
+  const userId = user.id;
   if (!userId) {
     throw new Error("Missing user");
   }
