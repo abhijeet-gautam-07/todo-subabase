@@ -143,7 +143,7 @@ export default async function AdminPage() {
                         formAction={unblockUser}
                         userId={row.id}
                         label="Unblock"
-                        disabled={row.id === user.id}
+                        disabled={row.id === user?.id}
                       />
                     ) : (
                       <ActionButton
@@ -151,7 +151,7 @@ export default async function AdminPage() {
                         userId={row.id}
                         label="Block"
                         variant="secondary"
-                        disabled={row.id === user.id}
+                        disabled={row.id === user?.id}
                       />
                     )}
                     {row.role === "admin" ? (
@@ -159,14 +159,14 @@ export default async function AdminPage() {
                         formAction={demoteUser}
                         userId={row.id}
                         label="Remove admin"
-                        disabled={row.id === user.id}
+                        disabled={row.id === user?.id}
                       />
                     ) : (
                       <ActionButton
                         formAction={promoteUser}
                         userId={row.id}
                         label="Make admin"
-                        disabled={row.id === user.id}
+                        disabled={row.id === user?.id}
                       />
                     )}
                     <ActionButton
@@ -174,7 +174,7 @@ export default async function AdminPage() {
                       userId={row.id}
                       label="Delete"
                       variant="destructive"
-                      disabled={row.id === user.id}
+                      disabled={row.id === user?.id}
                     />
                   </div>
                 </td>

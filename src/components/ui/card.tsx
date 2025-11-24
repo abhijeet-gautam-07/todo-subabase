@@ -1,76 +1,46 @@
+// src/components/ui/card.tsx
 import * as React from "react";
-import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-xl border bg-card text-card-foreground shadow",
-      className,
-    )}
-    {...props}
-  />
-));
-Card.displayName = "Card";
+type BaseProps = {
+  children: React.ReactNode;
+  className?: string;
+};
 
-const CardHeader = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex flex-col space-y-1.5 p-6", className)}
-    {...props}
-  />
-));
-CardHeader.displayName = "CardHeader";
+/**
+ * Card - container
+ */
+export function Card({ children, className = "" }: BaseProps) {
+  // Note: we keep padding off here so CardContent can control spacing per usage.
+  return <div className={["bg-white shadow rounded-lg overflow-hidden", className].join(" ")}>{children}</div>;
+}
 
-const CardTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
-    ref={ref}
-    className={cn("text-2xl font-semibold leading-none tracking-tight", className)}
-    {...props}
-  />
-));
-CardTitle.displayName = "CardTitle";
+/**
+ * CardHeader - top area for titles
+ */
+export function CardHeader({ children, className = "" }: BaseProps) {
+  return <div className={["px-4 py-3 border-b", className].join(" ")}>{children}</div>;
+}
 
-const CardDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <p
-    ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
-    {...props}
-  />
-));
-CardDescription.displayName = "CardDescription";
+/**
+ * CardTitle - heading for card
+ */
+export function CardTitle({ children, className = "" }: BaseProps) {
+  return <h3 className={["text-lg font-semibold", className].join(" ")}>{children}</h3>;
+}
 
-const CardContent = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
-));
-CardContent.displayName = "CardContent";
-
-const CardFooter = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex items-center p-6 pt-0", className)}
-    {...props}
-  />
-));
-CardFooter.displayName = "CardFooter";
-
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter };
-
+/**
+ * CardContent - accepts className and any div attributes (e.g. role, id)
+ * This is the component that your TodoList was calling with a className prop.
+ */
+export function CardContent({
+  children,
+  className = "",
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  // default padding can be overridden by passed-in className
+  return (
+    <div className={["p-4", className].join(" ")} {...props}>
+      {children}
+    </div>
+  );
+}

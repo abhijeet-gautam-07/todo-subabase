@@ -1,7 +1,12 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Explicitly tell Next.js that Turbopack is allowed.
+  // This removes the error about mixing webpack config & turbopack.
+  turbopack: {},
 
-const nextConfig: NextConfig = {
-  /* config options here */
+  // ❗ REMOVE ALL WEBPACK CONFIG ❗
+  // Turbopack does NOT support custom webpack rules.
+  // If you keep webpack() here Turbopack will fail.
 };
 
-export default nextConfig;
+module.exports = nextConfig;

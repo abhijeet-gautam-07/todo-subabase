@@ -1,147 +1,157 @@
+// src/actions/auth.ts
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getServerSupabase } from "@/lib/supabase/server";
 
-type ActionState = {
-  error?: string;
-};
+type ActionState = { error?: string };
 
-// --------------------
-// LOGIN ACTION
-// --------------------
+/**
+ * loginAction - enhanced logging to debug why the server thinks session is missing.
+ */
 export async function loginAction(
-  prevState: ActionState,
+  prevState: void | ActionState,
   formData: FormData
-): Promise<ActionState> {
-  const form = parseAuthForm(formData);
+): Promise<void | ActionState> {
+  try {
+    const email = getString(formData.get("email"));
+    const password = getString(formData.get("password"));
 
-  if ("error" in form) {
-    return { error: form.error };
+    if (!email || !isValidEmail(email)) return { error: "Please enter a valid email." };
+    if (!password) return { error: "Please enter a password." };
+
+    // Log incoming cookies as seen by this server action
+    try {
+      const cookieStore = await cookies();
+      console.log("[loginAction] request cookies:", cookieStore.getAll().map(c => ({ name: c.name, valuePresent: !!c.value })));
+    } catch (e) {
+      console.error("[loginAction] cookies() threw:", e);
+    }
+
+    const supabase = await getServerSupabase();
+
+    // Attempt sign-in
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    console.log("[loginAction] signIn result:", { user: signInData?.user ?? null, signInError: signInError?.message ?? null });
+
+    if (signInError) {
+      return { error: signInError.message || "Sign in failed." };
+    }
+
+    // Confirm session on server (cookies should have been written)
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log("[loginAction] getSession result:", { session: !!sessionData?.session, sessionError: sessionError?.message ?? null });
+      if (sessionError) {
+        console.error("loginAction getSession error:", sessionError);
+        return { error: "Signed in but cannot read session on server." };
+      }
+
+      const user = sessionData?.session?.user ?? signInData?.user ?? null;
+      if (!user) {
+        console.warn("[loginAction] no active session user after signIn");
+        return { error: "Sign in succeeded but no active session was found (cookies not set)." };
+      }
+    } catch (e) {
+      console.error("[loginAction] getSession threw:", e);
+      return { error: "Unable to confirm session. Check server logs." };
+    }
+
+    // success -> redirect
+    console.log("[loginAction] successful -> redirect to /dashboard");
+    redirect("/dashboard");
+  } catch (err) {
+    console.error("[loginAction] unexpected error:", err);
+    return { error: "Internal server error during login. Check server logs." };
   }
-
-  const supabase = await getServerSupabase();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: form.email,
-    password: form.password,
-  });
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  redirect("/dashboard");
 }
 
-// --------------------
-// SIGNUP ACTION
-// --------------------
+/**
+ * signupAction - keep same defensive behavior, but log session result
+ */
 export async function signupAction(
-  prevState: ActionState,
+  prevState: void | ActionState,
   formData: FormData
-): Promise<ActionState> {
-  const form = parseSignupForm(formData);
+): Promise<void | ActionState> {
+  try {
+    const fullName = getString(formData.get("fullName"));
+    const email = getString(formData.get("email"));
+    const password = getString(formData.get("password"));
+    const makeAdmin = getCheckboxValue(formData.get("makeAdmin"));
 
-  if ("error" in form) {
-    return { error: form.error };
+    if (!fullName) return { error: "Full name is required." };
+    if (!email || !isValidEmail(email)) return { error: "Valid email required." };
+    if (!password || password.length < 6) return { error: "Password must be at least 6 characters." };
+
+    // Log incoming cookies for the signup request
+    try {
+      const cookieStore = await cookies();
+      console.log("[signupAction] request cookies:", cookieStore.getAll().map(c => ({ name: c.name, valuePresent: !!c.value })));
+    } catch (e) {
+      console.error("[signupAction] cookies() threw:", e);
+    }
+
+    const supabase = await getServerSupabase();
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    console.log("[signupAction] signUp result:", { user: signUpData?.user ?? null, signUpError: signUpError?.message ?? null });
+
+    if (signUpError) {
+      return { error: signUpError.message || "Unable to create account." };
+    }
+
+    const user = signUpData?.user ?? null;
+
+    if (user?.id) {
+      try {
+        await supabase.from("profiles").insert({
+          id: user.id,
+          full_name: fullName,
+          role: makeAdmin ? "admin" : "user",
+          is_blocked: false,
+        });
+      } catch (e) {
+        console.error("[signupAction] profile insert failed:", e);
+      }
+    }
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log("[signupAction] getSession result:", { session: !!sessionData?.session, sessionError: sessionError?.message ?? null });
+      if (!sessionData?.session?.user) {
+        return {
+          error:
+            "Account created. Please verify your email before signing in (check spam).",
+        };
+      }
+    } catch (e) {
+      console.error("[signupAction] getSession threw:", e);
+      return { error: "Unable to confirm session after signup. Check server logs." };
+    }
+
+    redirect("/dashboard");
+  } catch (err) {
+    console.error("[signupAction] unexpected error:", err);
+    return { error: "Internal server error during signup. Check server logs." };
   }
-
-  const supabase = await getServerSupabase();
-  const { data, error } = await supabase.auth.signUp({
-    email: form.email,
-    password: form.password,
-    options: {
-      data: {
-        full_name: form.fullName,
-      },
-    },
-  });
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  if (data?.user) {
-    await supabase
-      .from("profiles")
-      .upsert({
-        id: data.user.id,
-        full_name: form.fullName,
-        role: form.makeAdmin ? "admin" : "user",
-      })
-      .single();
-  }
-
-  redirect("/dashboard");
 }
 
-// --------------------
-// LOGOUT ACTION
-// --------------------
-export async function logoutAction(): Promise<void> {
-  const supabase = await getServerSupabase();
-  await supabase.auth.signOut();
-  redirect("/login");
+/* helpers */
+function getString(v: FormDataEntryValue | null) {
+  return typeof v === "string" ? v.trim() : "";
 }
-
-// --------------------
-// FORM UTILITIES
-// --------------------
-
-const MIN_PASSWORD_LENGTH = 6;
-
-type AuthSuccess = { email: string; password: string };
-type ErrorResult = { error: string };
-type AuthResult = AuthSuccess | ErrorResult;
-type SignupSuccess = AuthSuccess & { fullName: string; makeAdmin: boolean };
-type SignupResult = SignupSuccess | ErrorResult;
-
-function parseAuthForm(formData: FormData): AuthResult {
-  const email = normalizeEmail(formData.get("email"));
-  const password = getPassword(formData.get("password"));
-
-  if (!email) return { error: "Email is required" };
-  if (!isValidEmail(email)) return { error: "Email address is invalid" };
-  if (!password) return { error: "Password is required" };
-  if (password.length < MIN_PASSWORD_LENGTH)
-    return { error: "Password is too short" };
-
-  return { email, password };
+function isValidEmail(e: string) {
+  return /\S+@\S+\.\S+/.test(e);
 }
-
-function parseSignupForm(formData: FormData): SignupResult {
-  const auth = parseAuthForm(formData);
-  if ("error" in auth) return auth;
-
-  const fullName = normalizeText(formData.get("fullName"));
-  if (!fullName) return { error: "Full name is required" };
-  if (fullName.length > 120)
-    return { error: "Full name is too long" };
-
-  const makeAdmin = getCheckboxValue(formData.get("makeAdmin"));
-
-  return { email: auth.email, password: auth.password, fullName, makeAdmin };
-}
-
-function normalizeEmail(value: FormDataEntryValue | null) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-function normalizeText(value: FormDataEntryValue | null) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function getPassword(value: FormDataEntryValue | null) {
-  return typeof value === "string" ? value : "";
-}
-
-function isValidEmail(email: string) {
-  return /\S+@\S+\.\S+/.test(email);
-}
-
-function getCheckboxValue(value: FormDataEntryValue | null) {
-  if (typeof value !== "string") {
-    return false;
-  }
-  return value === "on" || value === "true";
+function getCheckboxValue(v: FormDataEntryValue | null) {
+  return v === "on" || v === "true";
 }

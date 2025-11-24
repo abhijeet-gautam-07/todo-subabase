@@ -10,7 +10,7 @@ import { Todo } from "@/types/todo";
 export default async function DashboardPage() {
   noStore();
   const { user } = await requireUser();
-  const userId = user.id;
+  const userId = user?.id;
   if (!userId) {
     throw new Error("Missing user");
   }
