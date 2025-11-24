@@ -1,3 +1,4 @@
+// src/actions/todos.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -5,31 +6,38 @@ import { getServerSupabase } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 
 /**
- * ActionResult guarantees `success: boolean`. We accept `prevState: any`
- * to be compatible with whatever shape the client-side `ActionState` uses.
+ * ActionState is the exact union expected by useActionState on the client:
+ * - either error-only (success absent)
+ * - or success-only (error absent)
  */
-export type ActionResult = { error?: string; success: boolean };
+export type ActionState =
+  | { error: string; success?: undefined }
+  | { success: true; error?: undefined };
 
 /* -------------------------------------------------------------------------- */
 /*                                CREATE TODO                                 */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * createTodoAction called by client via useActionState.
+ * prevState is accepted as any to match useActionState runtime shapes.
+ * Returns the exact ActionState union so TypeScript lines up with the client.
+ */
 export async function createTodoAction(
-  // widened prevState type to match useActionState's incoming shape
   prevState: any,
   formData: FormData
-): Promise<ActionResult> {
+): Promise<ActionState> {
   try {
     const title = formData.get("title")?.toString().trim();
     const description = formData.get("description")?.toString().trim() || null;
     const dueDate = formData.get("dueDate")?.toString() || null;
 
-    if (!title) return { error: "Title is required", success: false };
+    if (!title) return { error: "Title is required" };
 
     const auth = await requireUser();
     if (!auth.user) {
       console.error("createTodoAction: not authenticated");
-      return { error: "Not authenticated", success: false };
+      return { error: "Not authenticated" };
     }
     const user = auth.user;
 
@@ -45,14 +53,14 @@ export async function createTodoAction(
 
     if (res.error) {
       console.error("createTodoAction error:", res.error);
-      return { error: "Failed to create todo", success: false };
+      return { error: "Failed to create todo" };
     }
 
     revalidatePath("/dashboard");
     return { success: true };
   } catch (err) {
     console.error("createTodoAction unexpected error:", err);
-    return { error: "Unexpected error", success: false };
+    return { error: "Unexpected error" };
   }
 }
 
@@ -60,23 +68,26 @@ export async function createTodoAction(
 /*                                UPDATE TODO                                 */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * updateTodoAction is bound in the client with the todo id, then used with useActionState.
+ * Make sure it returns ActionState union exactly.
+ */
 export async function updateTodoAction(
-  // first param is todoId (bound in client) — second param is prevState from useActionState
   todoId: string,
   prevState: any,
   formData: FormData
-): Promise<ActionResult> {
+): Promise<ActionState> {
   try {
     const title = formData.get("title")?.toString().trim();
     const description = formData.get("description")?.toString().trim() || null;
     const dueDate = formData.get("dueDate")?.toString() || null;
 
-    if (!title) return { error: "Title is required", success: false };
+    if (!title) return { error: "Title is required" };
 
     const auth = await requireUser();
     if (!auth.user) {
       console.error("updateTodoAction: not authenticated");
-      return { error: "Not authenticated", success: false };
+      return { error: "Not authenticated" };
     }
     const user = auth.user;
     const profile = auth.profile;
@@ -109,7 +120,7 @@ export async function updateTodoAction(
     return { success: true };
   } catch (err) {
     console.error("updateTodoAction error:", err);
-    return { error: "Unexpected error", success: false };
+    return { error: "Unexpected error" };
   }
 }
 
@@ -117,6 +128,10 @@ export async function updateTodoAction(
 /*                             TOGGLE TODO COMPLETE                            */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * toggleTodoAction used in todo list. It returns void (UI doesn't expect ActionState here).
+ * Permission: owner or admin (admin fallback).
+ */
 export async function toggleTodoAction(
   todoId: string,
   completed: boolean,

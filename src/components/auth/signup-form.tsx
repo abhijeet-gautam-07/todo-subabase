@@ -1,3 +1,4 @@
+// src/components/auth/signup-form.tsx
 "use client";
 
 import Link from "next/link";
@@ -8,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const initialState = { error: "" };
+type ActionState = { error?: string; success?: boolean };
+const initialState: ActionState = { error: "" };
 
 export function SignupForm() {
-  const [state, formAction] = useActionState(signupAction, initialState);
+  const [state, formAction] = useActionState<ActionState, FormData>(signupAction as any, initialState);
+  const { pending } = useFormStatus();
 
   return (
     <form action={formAction} className="space-y-6">
@@ -30,18 +33,12 @@ export function SignupForm() {
         <Input id="password" name="password" type="password" required />
       </div>
 
-      <div className="flex items-center gap-2">
-        <Input id="makeAdmin" name="makeAdmin" type="checkbox" className="h-4 w-4" />
-        <Label htmlFor="makeAdmin" className="text-sm font-normal">
-          Make this account an admin
-        </Label>
-      </div>
+      {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
+      {state?.success && <p className="text-sm text-green-600">Account created</p>}
 
-      {state?.error && (
-        <p className="text-sm text-destructive">{state.error}</p>
-      )}
-
-      <SubmitButton label="Create account" />
+      <Button type="submit" className="w-full" disabled={pending}>
+        {pending ? "Please wait..." : "Create account"}
+      </Button>
 
       <p className="text-sm text-muted-foreground">
         Already registered?{" "}
@@ -50,15 +47,5 @@ export function SignupForm() {
         </Link>
       </p>
     </form>
-  );
-}
-
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? "Please wait..." : label}
-    </Button>
   );
 }

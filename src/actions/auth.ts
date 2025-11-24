@@ -2,13 +2,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { getServerSupabase } from "@/lib/supabase/server";
 
-type ActionState = { error?: string };
+type ActionState = { error?: string; success?: boolean };
 
 /**
- * loginAction - enhanced logging to debug why the server thinks session is missing.
+ * LOGIN ACTION
+ * Signature compatible with useActionState: (prevState, formData) => void | ActionState | Promise<void | ActionState>
  */
 export async function loginAction(
   prevState: void | ActionState,
@@ -18,16 +18,8 @@ export async function loginAction(
     const email = getString(formData.get("email"));
     const password = getString(formData.get("password"));
 
-    if (!email || !isValidEmail(email)) return { error: "Please enter a valid email." };
-    if (!password) return { error: "Please enter a password." };
-
-    // Log incoming cookies as seen by this server action
-    try {
-      const cookieStore = await cookies();
-      console.log("[loginAction] request cookies:", cookieStore.getAll().map(c => ({ name: c.name, valuePresent: !!c.value })));
-    } catch (e) {
-      console.error("[loginAction] cookies() threw:", e);
-    }
+    if (!email || !isValidEmail(email)) return { error: "Please enter a valid email.", success: false };
+    if (!password) return { error: "Please enter a password.", success: false };
 
     const supabase = await getServerSupabase();
 
@@ -37,121 +29,133 @@ export async function loginAction(
       password,
     });
 
-    console.log("[loginAction] signIn result:", { user: signInData?.user ?? null, signInError: signInError?.message ?? null });
-
     if (signInError) {
-      return { error: signInError.message || "Sign in failed." };
+      return { error: signInError.message || "Sign in failed.", success: false };
     }
 
     // Confirm session on server (cookies should have been written)
-    try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      console.log("[loginAction] getSession result:", { session: !!sessionData?.session, sessionError: sessionError?.message ?? null });
-      if (sessionError) {
-        console.error("loginAction getSession error:", sessionError);
-        return { error: "Signed in but cannot read session on server." };
-      }
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error("loginAction getSession error:", sessionError);
+      return { error: "Signed in but cannot read session on server.", success: false };
+    }
 
-      const user = sessionData?.session?.user ?? signInData?.user ?? null;
-      if (!user) {
-        console.warn("[loginAction] no active session user after signIn");
-        return { error: "Sign in succeeded but no active session was found (cookies not set)." };
+    const user = sessionData?.session?.user ?? signInData?.user ?? null;
+    if (!user) {
+      return { error: "Sign in succeeded but no active session was found (cookies not set).", success: false };
+    }
+
+    // Load profile and check blocked state
+    try {
+      const { data: profileData, error: profileErr } = await supabase
+        .from("profiles")
+        .select("id, is_blocked, role")
+        .eq("id", user.id)
+        .single();
+
+      if (profileErr) {
+        // If profile missing, allow sign-in (or change to block) — here we log only.
+        console.warn("loginAction: profile fetch error (allowing login):", profileErr);
+      } else if (profileData?.is_blocked) {
+        // If user is blocked — sign them out to clear cookies & return an error
+        try {
+          await supabase.auth.signOut();
+        } catch (e) {
+          console.error("loginAction: signOut after block failed:", e);
+        }
+        return { error: "Your account has been blocked. Contact an administrator.", success: false };
       }
     } catch (e) {
-      console.error("[loginAction] getSession threw:", e);
-      return { error: "Unable to confirm session. Check server logs." };
+      console.error("loginAction: error checking profile block status:", e);
+      // Continue (non-fatal) — but in rare cases you may prefer to block on error.
     }
 
     // success -> redirect
-    console.log("[loginAction] successful -> redirect to /dashboard");
     redirect("/dashboard");
   } catch (err) {
-    console.error("[loginAction] unexpected error:", err);
-    return { error: "Internal server error during login. Check server logs." };
+    console.error("loginAction unexpected error:", err);
+    return { error: "Unexpected error during login.", success: false };
   }
 }
 
 /**
- * signupAction - keep same defensive behavior, but log session result
+ * SIGNUP ACTION
+ * Forces role = "user" server-side. Returns friendly message if signUp did not create session
+ * (e.g. email confirmation required).
  */
 export async function signupAction(
   prevState: void | ActionState,
   formData: FormData
 ): Promise<void | ActionState> {
   try {
+    // Defensive: ignore any client attempt to set role
+    try {
+      formData.delete("makeAdmin");
+    } catch {}
+
     const fullName = getString(formData.get("fullName"));
     const email = getString(formData.get("email"));
     const password = getString(formData.get("password"));
-    const makeAdmin = getCheckboxValue(formData.get("makeAdmin"));
 
-    if (!fullName) return { error: "Full name is required." };
-    if (!email || !isValidEmail(email)) return { error: "Valid email required." };
-    if (!password || password.length < 6) return { error: "Password must be at least 6 characters." };
-
-    // Log incoming cookies for the signup request
-    try {
-      const cookieStore = await cookies();
-      console.log("[signupAction] request cookies:", cookieStore.getAll().map(c => ({ name: c.name, valuePresent: !!c.value })));
-    } catch (e) {
-      console.error("[signupAction] cookies() threw:", e);
-    }
+    if (!fullName) return { error: "Full name is required.", success: false };
+    if (!email || !isValidEmail(email)) return { error: "Valid email required.", success: false };
+    if (!password || password.length < 6) return { error: "Password must be at least 6 characters.", success: false };
 
     const supabase = await getServerSupabase();
 
+    // sign up
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
     });
 
-    console.log("[signupAction] signUp result:", { user: signUpData?.user ?? null, signUpError: signUpError?.message ?? null });
-
     if (signUpError) {
-      return { error: signUpError.message || "Unable to create account." };
+      return { error: signUpError.message || "Unable to create account.", success: false };
     }
 
     const user = signUpData?.user ?? null;
 
+    // Best-effort: create profile row if user id available; force role "user"
     if (user?.id) {
       try {
         await supabase.from("profiles").insert({
           id: user.id,
           full_name: fullName,
-          role: makeAdmin ? "admin" : "user",
+          role: "user", // force user role on signup
           is_blocked: false,
         });
       } catch (e) {
-        console.error("[signupAction] profile insert failed:", e);
+        console.error("signupAction: failed to insert profile:", e);
       }
     }
 
-    try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      console.log("[signupAction] getSession result:", { session: !!sessionData?.session, sessionError: sessionError?.message ?? null });
-      if (!sessionData?.session?.user) {
-        return {
-          error:
-            "Account created. Please verify your email before signing in (check spam).",
-        };
-      }
-    } catch (e) {
-      console.error("[signupAction] getSession threw:", e);
-      return { error: "Unable to confirm session after signup. Check server logs." };
+    // Confirm session (note: signUp may not create a session if email confirmation is required)
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error("signupAction getSession error:", sessionError);
     }
 
+    if (!sessionData?.session?.user) {
+      // No session: likely email confirmation required — show friendly message to client
+      return {
+        error:
+          "Account created. Please verify your email before signing in (check SPAM).",
+        success: false,
+      };
+    }
+
+    // session exists -> redirect
     redirect("/dashboard");
   } catch (err) {
-    console.error("[signupAction] unexpected error:", err);
-    return { error: "Internal server error during signup. Check server logs." };
+    console.error("signupAction unexpected error:", err);
+    return { error: "Unexpected error during signup.", success: false };
   }
 }
 
-/* helpers */
+/* Helpers */
 function getString(v: FormDataEntryValue | null) {
   return typeof v === "string" ? v.trim() : "";
 }
 function isValidEmail(e: string) {
   return /\S+@\S+\.\S+/.test(e);
-}
-function getCheckboxValue(v: FormDataEntryValue | null) {
-  return v === "on" || v === "true";
 }
