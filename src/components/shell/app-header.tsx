@@ -25,7 +25,7 @@ export function AppHeader({ fullName, role }: AppHeaderProps) {
               href="/admin"
               className="text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
-              Admin
+              Admin Panel
             </Link>
           )}
           <Badge variant="secondary">{role === "admin" ? "Admin" : "Member"}</Badge>
