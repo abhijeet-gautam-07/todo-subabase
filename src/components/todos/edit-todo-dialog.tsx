@@ -4,7 +4,7 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { updateTodoAction, ActionResult } from "@/actions/todos";
+import { updateTodoAction } from "@/actions/todos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
