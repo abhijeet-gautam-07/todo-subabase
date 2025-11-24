@@ -1,14 +1,13 @@
 // src/actions/admin.ts
 "use server";
-// new
+
 import { revalidatePath } from "next/cache";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
 /**
- * Admin server actions (explicit async functions returning Promise<void>)
- * These functions expect a FormData payload with `userId` or `todoId` fields.
- *
- * Requirement: getAdminSupabase() must use your service role key (SUPABASE_SERVICE_ROLE_KEY).
+ * Admin actions: manage user profiles only.
+ * NOTE: This file intentionally does NOT include any actions to delete or modify todos.
+ * Admins will NOT be able to view/delete other users' todos from the admin UI.
  */
 
 /** Delete a user (profile + try to delete auth user) */
@@ -25,9 +24,9 @@ export async function deleteUser(formData: FormData): Promise<void> {
     // delete profile row
     await admin.from("profiles").delete().eq("id", userId);
 
-    // try to delete auth user via admin API (SDK shape varies across versions)
+    // try to delete auth user via admin API (SDK shape varies)
     try {
-      // @ts-ignore - be tolerant to different SDK versions
+      // @ts-ignore tolerant call
       if (admin.auth && (admin.auth.admin || admin.auth.api)) {
         if (typeof (admin.auth as any).admin?.deleteUser === "function") {
           await (admin.auth as any).admin.deleteUser(userId);
@@ -39,7 +38,7 @@ export async function deleteUser(formData: FormData): Promise<void> {
       console.error("deleteUser: error deleting auth user (non-fatal):", e);
     }
 
-    // revalidate relevant pages
+    // revalidate admin/dashboard pages
     try {
       revalidatePath("/dashboard");
       revalidatePath("/admin");
@@ -118,23 +117,5 @@ export async function demoteUser(formData: FormData): Promise<void> {
     revalidatePath("/dashboard");
   } catch (err) {
     console.error("demoteUser error:", err);
-  }
-}
-
-/** Admin deletion of a todo (expect formData.todoId) */
-export async function deleteTodo(formData: FormData): Promise<void> {
-  const todoId = formData.get("todoId") as string | null;
-  if (!todoId) {
-    console.error("admin deleteTodo: missing todoId");
-    return;
-  }
-
-  const admin = getAdminSupabase();
-  try {
-    await admin.from("todos").delete().eq("id", todoId);
-    revalidatePath("/dashboard");
-    revalidatePath("/admin");
-  } catch (err) {
-    console.error("admin deleteTodo error:", err);
   }
 }
