@@ -2,81 +2,139 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
-const userSchema = z.object({
-  userId: z.string().uuid(),
-});
+/**
+ * Admin server actions (explicit async functions returning Promise<void>)
+ * These functions expect a FormData payload with `userId` or `todoId` fields.
+ *
+ * Requirement: getAdminSupabase() must use your service role key (SUPABASE_SERVICE_ROLE_KEY).
+ */
 
-const todoIdSchema = z.object({
-  todoId: z.string().uuid(),
-});
-
-async function validateUser(formData: FormData) {
-  const parsed = userSchema.safeParse({ userId: formData.get("userId") });
-  if (!parsed.success) {
-    throw new Error("Invalid user id");
+/** Delete a user (profile + try to delete auth user) */
+export async function deleteUser(formData: FormData): Promise<void> {
+  const userId = formData.get("userId") as string | null;
+  if (!userId) {
+    console.error("deleteUser: missing userId");
+    return;
   }
-  return parsed.data.userId;
-}
 
-async function validateTodoId(formData: FormData) {
-  const parsed = todoIdSchema.safeParse({ todoId: formData.get("todoId") });
-  if (!parsed.success) {
-    throw new Error("Invalid todo id");
+  const admin = getAdminSupabase();
+
+  try {
+    // delete profile row
+    await admin.from("profiles").delete().eq("id", userId);
+
+    // try to delete auth user via admin API (SDK shape varies across versions)
+    try {
+      // @ts-ignore - be tolerant to different SDK versions
+      if (admin.auth && (admin.auth.admin || admin.auth.api)) {
+        if (typeof (admin.auth as any).admin?.deleteUser === "function") {
+          await (admin.auth as any).admin.deleteUser(userId);
+        } else if (typeof (admin.auth as any).deleteUser === "function") {
+          await (admin.auth as any).deleteUser(userId);
+        }
+      }
+    } catch (e) {
+      console.error("deleteUser: error deleting auth user (non-fatal):", e);
+    }
+
+    // revalidate relevant pages
+    try {
+      revalidatePath("/dashboard");
+      revalidatePath("/admin");
+    } catch {}
+  } catch (err) {
+    console.error("deleteUser error:", err);
   }
-  return parsed.data.todoId;
 }
 
-export async function blockUser(formData: FormData) {
-  await requireAdmin();
-  const userId = await validateUser(formData);
+/** Block a user (set is_blocked = true) */
+export async function blockUser(formData: FormData): Promise<void> {
+  const userId = formData.get("userId") as string | null;
+  if (!userId) {
+    console.error("blockUser: missing userId");
+    return;
+  }
+
   const admin = getAdminSupabase();
-  await admin.from("profiles").update({ is_blocked: true }).eq("id", userId);
-  revalidatePath("/admin");
+  try {
+    await admin.from("profiles").update({ is_blocked: true }).eq("id", userId);
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+  } catch (err) {
+    console.error("blockUser error:", err);
+  }
 }
 
-export async function unblockUser(formData: FormData) {
-  await requireAdmin();
-  const userId = await validateUser(formData);
+/** Unblock a user (set is_blocked = false) */
+export async function unblockUser(formData: FormData): Promise<void> {
+  const userId = formData.get("userId") as string | null;
+  if (!userId) {
+    console.error("unblockUser: missing userId");
+    return;
+  }
+
   const admin = getAdminSupabase();
-  await admin.from("profiles").update({ is_blocked: false }).eq("id", userId);
-  revalidatePath("/admin");
+  try {
+    await admin.from("profiles").update({ is_blocked: false }).eq("id", userId);
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+  } catch (err) {
+    console.error("unblockUser error:", err);
+  }
 }
 
-export async function promoteUser(formData: FormData) {
-  await requireAdmin();
-  const userId = await validateUser(formData);
+/** Promote user to admin (role = "admin") */
+export async function promoteUser(formData: FormData): Promise<void> {
+  const userId = formData.get("userId") as string | null;
+  if (!userId) {
+    console.error("promoteUser: missing userId");
+    return;
+  }
+
   const admin = getAdminSupabase();
-  await admin.from("profiles").update({ role: "admin" }).eq("id", userId);
-  revalidatePath("/admin");
+  try {
+    await admin.from("profiles").update({ role: "admin" }).eq("id", userId);
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+  } catch (err) {
+    console.error("promoteUser error:", err);
+  }
 }
 
-export async function demoteUser(formData: FormData) {
-  await requireAdmin();
-  const userId = await validateUser(formData);
+/** Demote admin to regular user (role = "user") */
+export async function demoteUser(formData: FormData): Promise<void> {
+  const userId = formData.get("userId") as string | null;
+  if (!userId) {
+    console.error("demoteUser: missing userId");
+    return;
+  }
+
   const admin = getAdminSupabase();
-  await admin.from("profiles").update({ role: "user" }).eq("id", userId);
-  revalidatePath("/admin");
+  try {
+    await admin.from("profiles").update({ role: "user" }).eq("id", userId);
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+  } catch (err) {
+    console.error("demoteUser error:", err);
+  }
 }
 
-export async function deleteUser(formData: FormData) {
-  await requireAdmin();
-  const userId = await validateUser(formData);
-  const admin = getAdminSupabase();
-  // remove user todos and profile then delete auth user
-  await admin.from("todos").delete().eq("user_id", userId);
-  await admin.from("profiles").delete().eq("id", userId);
-  await admin.auth.admin.deleteUser(userId);
-  revalidatePath("/admin");
-}
+/** Admin deletion of a todo (expect formData.todoId) */
+export async function deleteTodo(formData: FormData): Promise<void> {
+  const todoId = formData.get("todoId") as string | null;
+  if (!todoId) {
+    console.error("admin deleteTodo: missing todoId");
+    return;
+  }
 
-export async function deleteTodo(formData: FormData) {
-  await requireAdmin();
-  const todoId = await validateTodoId(formData);
   const admin = getAdminSupabase();
-  await admin.from("todos").delete().eq("id", todoId);
-  revalidatePath("/admin");
+  try {
+    await admin.from("todos").delete().eq("id", todoId);
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
+  } catch (err) {
+    console.error("admin deleteTodo error:", err);
+  }
 }

@@ -1,97 +1,97 @@
+// src/components/todos/edit-todo-dialog.tsx
 "use client";
 
-import { useActionState, useState } from "react";
+import * as React from "react";
+import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { updateTodoAction, ActionResult } from "@/actions/todos";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Todo } from "@/types/todo";
-
-
-// union that useActionState expects (place this before you call useActionState)
-type ActionState =
-  | { error: string; success?: undefined }
-  | { success: boolean; error?: undefined };
-
-// initial state matches one branch of the union
-const initialState: ActionState = { error: "" };
-
 
 type EditTodoDialogProps = {
-  todo: Todo;
+  todo: {
+    id: string;
+    title: string;
+    description?: string | null;
+    due_date?: string | null;
+  };
+};
+
+type ActionState = {
+  error?: string;
+  success?: boolean;
 };
 
 export function EditTodoDialog({ todo }: EditTodoDialogProps) {
-  const [open, setOpen] = useState(false);
+  // Bind the todo id so the action signature matches what useActionState expects
+  // updateTodoAction signature: (todoId: string, prevState?, formData) => Promise<ActionResult>
+  const boundAction = React.useMemo(() => updateTodoAction.bind(null, todo.id), [todo.id]);
 
-  // NOTE: formAction is first, state is second
-const [state, formAction] = useActionState<ActionState, FormData>(
-  updateTodoAction,
-  initialState
-);
-
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          Edit
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit todo</DialogTitle>
-          <DialogDescription>Update details for this task</DialogDescription>
-        </DialogHeader>
-        <form action={formAction} className="space-y-4">
-          <input type="hidden" name="id" defaultValue={todo.id} />
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" name="title" defaultValue={todo.title} required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="dueDate">Due date</Label>
-            <Input
-              id="dueDate"
-              name="dueDate"
-              type="date"
-              required
-              defaultValue={
-                todo.due_date ? new Date(todo.due_date).toISOString().split("T")[0] : ""
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Details</Label>
-            <Textarea id="description" name="description" defaultValue={todo.description ?? ""} />
-          </div>
-
-          {"error" in state && state.error ? (
-            <p className="text-sm text-destructive">{state.error}</p>
-          ) : null}
-
-          <DialogSubmit />
-        </form>
-      </DialogContent>
-    </Dialog>
+  const [state, formAction] = useActionState<ActionState, FormData>(
+    // pass the bound action — now it has signature (prevState, formData)
+    boundAction as unknown as (state: ActionState | undefined, payload: FormData) => ActionState | Promise<ActionState>,
+    { error: "", success: false }
   );
-}
 
-function DialogSubmit() {
   const { pending } = useFormStatus();
+
+  // Local form refs (optional)
+  const titleRef = React.useRef<HTMLInputElement | null>(null);
+  const descRef = React.useRef<HTMLInputElement | null>(null);
+  const dueRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    // helpful for debugging when server returns errors
+    console.log("[EditTodoDialog] action state:", state);
+  }, [state]);
+
   return (
-    <Button type="submit" disabled={pending} className="w-full">
-      {pending ? "Updating..." : "Save changes"}
-    </Button>
+    <details className="inline-block">
+      <summary className="cursor-pointer underline">Edit</summary>
+
+      <form action={formAction} className="mt-3 space-y-3">
+        <div>
+          <Label htmlFor={`title-${todo.id}`}>Title</Label>
+          <Input
+            id={`title-${todo.id}`}
+            name="title"
+            defaultValue={todo.title}
+            ref={titleRef}
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor={`description-${todo.id}`}>Description</Label>
+          <Input
+            id={`description-${todo.id}`}
+            name="description"
+            defaultValue={todo.description ?? ""}
+            ref={descRef}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor={`due-${todo.id}`}>Due date</Label>
+          <Input
+            id={`due-${todo.id}`}
+            name="dueDate"
+            type="date"
+            defaultValue={todo.due_date ?? ""}
+            ref={dueRef}
+          />
+        </div>
+
+        {state?.error ? <p className="text-sm text-red-600">Error: {state.error}</p> : null}
+        {state?.success ? <p className="text-sm text-green-600">Saved</p> : null}
+
+        <div className="flex gap-2">
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </form>
+    </details>
   );
 }
