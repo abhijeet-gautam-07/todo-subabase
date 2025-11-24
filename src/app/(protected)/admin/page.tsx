@@ -35,6 +35,23 @@ type AdminTodoRow = {
 
 export default async function AdminPage() {
   noStore();
+
+  // === BUILD-TIME GUARD ===
+  // Avoid executing admin server code during prerender/build when envs are missing.
+  const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const envServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!envUrl || !envServiceKey) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-semibold">Admin</h1>
+        <p className="text-muted-foreground">
+          Admin panel unavailable during build. Please set Supabase environment variables for Preview/Production.
+        </p>
+      </div>
+    );
+  }
+  // === end guard ===
+
   const { user } = await requireAdmin();
   const admin = getAdminSupabase();
 
